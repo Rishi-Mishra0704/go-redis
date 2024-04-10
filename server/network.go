@@ -52,10 +52,17 @@ func (s *Server) Start() error {
 
 }
 
+func (s *Server) HandleRawMessage(rawMsg []byte) error {
+	return nil
+}
 func (s *Server) loop() {
 	for {
 		select {
 		case rawMsg := <-s.msgCh:
+			if err := s.HandleRawMessage(rawMsg); err != nil {
+				slog.Error("server is listening", "listenAddr", s.listenAddress)
+
+			}
 			fmt.Println((rawMsg))
 		case <-s.quitPeerCh:
 			return
@@ -81,6 +88,6 @@ func (s *Server) handleConn(conn net.Conn) {
 	s.addPeerCh <- peer
 	slog.Info("New Peer Connected", "RemoteAddr", conn.RemoteAddr())
 	if err := peer.readLoop(); err != nil {
-		fmt.Errorf("Error reading %s", err)
+		slog.Error("Error Reading: %v", err)
 	}
 }
