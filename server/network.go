@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log/slog"
 	"net"
 )
@@ -16,9 +17,11 @@ type Config struct {
 // Server represents a server that listens for incoming connections
 type Server struct {
 	Config
-	peers     map[*Peer]bool
-	ln        net.Listener
-	addPeerCh chan *Peer
+	peers      map[*Peer]bool
+	ln         net.Listener
+	addPeerCh  chan *Peer
+	quitPeerCh chan struct{}
+	msgCh      chan []byte
 }
 
 // NewServer creates a new server with the given configuration
@@ -27,9 +30,11 @@ func NewServer(config Config) *Server {
 		config.listenAddress = defaultListenAddress
 	}
 	return &Server{
-		Config:    config,
-		peers:     make(map[*Peer]bool),
-		addPeerCh: make(chan *Peer),
+		Config:     config,
+		peers:      make(map[*Peer]bool),
+		addPeerCh:  make(chan *Peer),
+		quitPeerCh: make(chan struct{}),
+		msgCh:      make(chan []byte),
 	}
 }
 
@@ -41,6 +46,7 @@ func (s *Server) Start() error {
 	}
 	s.ln = ln
 	go s.loop()
+	slog.Info("server is listening", "listenAddr", s.listenAddress)
 
 	return s.acceptLoop()
 
@@ -49,6 +55,10 @@ func (s *Server) Start() error {
 func (s *Server) loop() {
 	for {
 		select {
+		case rawMsg := <-s.msgCh:
+			fmt.Println((rawMsg))
+		case <-s.quitPeerCh:
+			return
 		case peer := <-s.addPeerCh:
 			s.peers[peer] = true
 		}
@@ -67,7 +77,10 @@ func (s *Server) acceptLoop() error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	peer := NewPeer(conn)
+	peer := NewPeer(conn, s.msgCh)
 	s.addPeerCh <- peer
-	peer.readLoop()
+	slog.Info("New Peer Connected", "RemoteAddr", conn.RemoteAddr())
+	if err := peer.readLoop(); err != nil {
+		fmt.Errorf("Error reading %s", err)
+	}
 }
