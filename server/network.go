@@ -53,6 +53,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) HandleRawMessage(rawMsg []byte) error {
+	fmt.Println(string(rawMsg))
 	return nil
 }
 func (s *Server) loop() {
